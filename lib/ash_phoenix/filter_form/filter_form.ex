@@ -283,7 +283,7 @@ defmodule AshPhoenix.FilterForm do
 
   At present, no validation actually occurs, but this will eventually be added.
   """
-  def validate(form, params \\ %{}) do
+  def validate(form, params \\ %{}, opts \\ []) do
     params = sanitize_params(params)
 
     params =
@@ -300,7 +300,7 @@ defmodule AshPhoenix.FilterForm do
     %{
       form
       | params: params,
-        components: validate_components(form, params["components"]),
+        components: validate_components(form, params["components"], opts),
         operator: to_existing_atom(params["operator"] || :and),
         negated?: params["negated"] || false
     }
@@ -729,17 +729,20 @@ defmodule AshPhoenix.FilterForm do
     params["negated"] in [true, "true"]
   end
 
-  defp validate_components(form, component_params) do
+  defp validate_components(form, component_params, opts) do
     form_without_components = %{form | components: []}
 
     component_params
     |> Enum.sort_by(fn {key, _} ->
       String.to_integer(key)
     end)
-    |> Enum.map(&validate_component(form_without_components, &1, form.components))
+    |> Enum.map(&validate_component(form_without_components, &1, form.components, opts))
   end
 
-  defp validate_component(form, {key, params}, current_components) do
+  defp validate_component(form, {key, params}, current_components, opts) do
+    default_value = Keyword.get(opts, :default_value)
+    default_operator = Keyword.get(opts, :default_operator)
+
     id = params[:id] || params["id"]
 
     match_component =
@@ -756,9 +759,9 @@ defmodule AshPhoenix.FilterForm do
           if new_predicate.field != field && not is_nil(new_predicate.value) do
             %{
               new_predicate
-              | value: nil,
-                operator: nil,
-                params: Map.merge(new_predicate.params, %{"value" => nil, "operator" => nil})
+              | value: default_value,
+                operator: default_operator,
+                params: Map.merge(new_predicate.params, %{"value" => default_value, "operator" => Atom.to_string(default_operator)})
             }
           else
             new_predicate
